@@ -1,21 +1,7 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-
 import '../models/product_model.dart';
 
 class RecommendationEngine {
-  RecommendationEngine({http.Client? client, String? endpoint})
-    : _client = client ?? http.Client(),
-      _endpoint =
-          endpoint ??
-          const String.fromEnvironment(
-            'RECOMMENDER_URL',
-            defaultValue: 'http://127.0.0.1:8787/recommend',
-          );
-
-  final http.Client _client;
-  final String _endpoint;
+  const RecommendationEngine();
 
   Future<List<ProductModel>> recommend({
     required List<ProductModel> products,
@@ -23,42 +9,7 @@ class RecommendationEngine {
     int limit = 8,
   }) async {
     if (products.isEmpty) return const [];
-    if (searchHistory.isEmpty) return _fallback(products, limit);
-
-    try {
-      final response = await _client
-          .post(
-            Uri.parse(_endpoint),
-            headers: const {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'limit': limit,
-              'searches': searchHistory,
-              'products': products.map((product) => product.toMap()).toList(),
-            }),
-          )
-          .timeout(const Duration(seconds: 2));
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        return _fallback(products, limit, searchHistory);
-      }
-
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      final ids = (decoded['recommendations'] as List? ?? [])
-          .map((item) => item.toString())
-          .toList();
-      final byId = {for (final product in products) product.id: product};
-      final recommended = [
-        for (final id in ids)
-          if (byId[id] != null) byId[id]!,
-      ];
-
-      if (recommended.isEmpty) {
-        return _fallback(products, limit, searchHistory);
-      }
-      return recommended.take(limit).toList();
-    } catch (_) {
-      return _fallback(products, limit, searchHistory);
-    }
+    return _fallback(products, limit, searchHistory);
   }
 
   List<ProductModel> _fallback(
@@ -101,7 +52,5 @@ class RecommendationEngine {
         behaviorBoost;
   }
 
-  void dispose() {
-    _client.close();
-  }
+  void dispose() {}
 }

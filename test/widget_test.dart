@@ -3,14 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shop_rite_ecommerce/app.dart';
-import 'package:shop_rite_ecommerce/config/razorpay_config.dart';
 import 'package:shop_rite_ecommerce/core/utils/network_checker.dart';
 import 'package:shop_rite_ecommerce/models/product_model.dart';
 import 'package:shop_rite_ecommerce/providers/product_provider.dart';
 import 'package:shop_rite_ecommerce/repositories/product_repository.dart';
 import 'package:shop_rite_ecommerce/screens/product/product_list_screen.dart';
-import 'package:shop_rite_ecommerce/services/razorpay_service.dart';
-import 'package:shop_rite_ecommerce/state/order_provider.dart';
+import 'package:shop_rite_ecommerce/services/payment_service.dart';
+import 'package:shop_rite_ecommerce/state/payment_provider.dart';
 
 void main() {
   setUp(() {
@@ -107,7 +106,7 @@ void main() {
 Widget _testApp() {
   return ShopRiteApp(
     overrides: [
-      razorpayServiceProvider.overrideWithValue(_FakeRazorpayService()),
+      paymentServiceProvider.overrideWithValue(_FakePaymentService()),
     ],
   );
 }
@@ -142,25 +141,20 @@ class _OfflineNetworkChecker extends NetworkChecker {
   Future<bool> get isConnected async => false;
 }
 
-class _FakeRazorpayService extends RazorpayService {
-  _FakeRazorpayService()
-    : super(
-        config: const RazorpayConfig(
-          keyId: 'test_key',
-          serverBaseUrl: 'http://localhost:8790',
-        ),
-      );
+class _FakePaymentService extends PaymentService {
+  _FakePaymentService();
 
   @override
-  Future<RazorpayPaymentResult> openCheckout({
+  Future<PaymentResult> openCheckout({
     required int amount,
+    required String userId,
+    required String orderId,
     required String email,
     required String phoneNumber,
-    String receipt = '',
   }) async {
-    return const RazorpayPaymentResult(
+    return const PaymentResult(
       paymentId: 'pay_test_success',
-      orderId: 'order_test_success',
+      razorpayOrderId: 'order_test_success',
       signature: 'signature_test_success',
     );
   }

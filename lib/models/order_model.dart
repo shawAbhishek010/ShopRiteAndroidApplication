@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'cart_item_model.dart';
 
 enum OrderStatus { placed, packed, shipped, delivered, cancelled }
@@ -43,12 +41,13 @@ class OrderModel {
     return OrderModel(
       orderId: map['orderId'] as String? ?? id,
       userId: map['userId'] as String? ?? '',
-      items: (map['items'] as List? ?? const [])
+      items: ((map['products'] as List?) ?? (map['items'] as List?) ?? const [])
           .map((item) => CartItemModel.fromMap(Map<String, dynamic>.from(item)))
           .toList(),
       totalAmount: (map['totalAmount'] as num? ?? 0).toDouble(),
       status: OrderStatus.values.firstWhere(
-        (status) => status.name == map['status'],
+        (status) =>
+            status.name == ((map['orderStatus'] as String?) ?? map['status']),
         orElse: () => OrderStatus.placed,
       ),
       createdAt: _dateFrom(map['createdAt']),
@@ -71,10 +70,12 @@ class OrderModel {
       'id': orderId,
       'orderId': orderId,
       'userId': userId,
+      'products': items.map((item) => item.toMap()).toList(),
       'items': items.map((item) => item.toMap()).toList(),
       'totalAmount': totalAmount,
+      'orderStatus': status.name,
       'status': status.name,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toIso8601String(),
       'phoneNumber': phoneNumber,
       'deliveryAddress': deliveryAddress,
       'paymentStatus': paymentStatus.name,
@@ -107,8 +108,8 @@ class OrderModel {
   }
 
   static DateTime _dateFrom(Object? value) {
-    if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
     return DateTime.now();
   }
 }

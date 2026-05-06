@@ -4,12 +4,32 @@ import 'package:provider/provider.dart';
 
 import '../../core/utils/helpers.dart';
 import '../../models/product_model.dart';
-import '../../providers/cart_provider.dart';
-import '../../providers/product_provider.dart';
 import '../../providers/wishlist_provider.dart';
+import '../../widgets/animated_add_to_cart_button.dart';
+import '../../widgets/cart_micro_interactions.dart';
 
-class ProductDetailScreen extends StatelessWidget {
+class ProductDetailScreen extends StatefulWidget {
   const ProductDetailScreen({super.key});
+
+  @override
+  State<ProductDetailScreen> createState() => _ProductDetailScreenState();
+}
+
+class _ProductDetailScreenState extends State<ProductDetailScreen> {
+  final GlobalKey _imageKey = GlobalKey();
+  late final CartMicroInteractionController _cartAnimationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _cartAnimationController = CartMicroInteractionController();
+  }
+
+  @override
+  void dispose() {
+    _cartAnimationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,78 +39,96 @@ class ProductDetailScreen extends StatelessWidget {
     }
     final wishlist = context.watch<WishlistProvider>();
     final isSaved = wishlist.contains(product.id);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(product.name),
-        actions: [
-          IconButton(
-            tooltip: isSaved ? 'Remove wishlist' : 'Save',
-            onPressed: () => wishlist.toggle(product),
-            icon: Icon(isSaved ? Icons.favorite : Icons.favorite_border),
-          ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 760;
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 980),
-                  child: isWide
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _ProductImage(product: product, width: 320),
-                            const SizedBox(width: 28),
-                            Expanded(
-                              child: _ProductDetails(
+    return CartAnimationScope(
+      controller: _cartAnimationController,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(product.name),
+          actions: [
+            PremiumCartAction(controller: _cartAnimationController),
+            IconButton(
+              tooltip: isSaved ? 'Remove wishlist' : 'Save',
+              onPressed: () => wishlist.toggle(product),
+              icon: Icon(isSaved ? Icons.favorite : Icons.favorite_border),
+            ),
+          ],
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 760;
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 980),
+                    child: isWide
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _ProductImage(
                                 product: product,
+                                width: 320,
+                                imageKey: _imageKey,
+                              ),
+                              const SizedBox(width: 28),
+                              Expanded(
+                                child: _ProductDetails(
+                                  product: product,
+                                  imageKey: _imageKey,
+                                  isSaved: isSaved,
+                                  onWishlistToggle: () =>
+                                      wishlist.toggle(product),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Center(
+                                child: _ProductImage(
+                                  product: product,
+                                  width: 260,
+                                  imageKey: _imageKey,
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              _ProductDetails(
+                                product: product,
+                                imageKey: _imageKey,
                                 isSaved: isSaved,
                                 onWishlistToggle: () =>
                                     wishlist.toggle(product),
                               ),
-                            ),
-                          ],
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Center(
-                              child: _ProductImage(
-                                product: product,
-                                width: 260,
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            _ProductDetails(
-                              product: product,
-                              isSaved: isSaved,
-                              onWishlistToggle: () => wishlist.toggle(product),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                  ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 }
 
 class _ProductImage extends StatelessWidget {
-  const _ProductImage({required this.product, required this.width});
+  const _ProductImage({
+    required this.product,
+    required this.width,
+    required this.imageKey,
+  });
 
   final ProductModel product;
   final double width;
+  final GlobalKey imageKey;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
+      key: imageKey,
       width: width,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
@@ -115,11 +153,13 @@ class _ProductImage extends StatelessWidget {
 class _ProductDetails extends StatelessWidget {
   const _ProductDetails({
     required this.product,
+    required this.imageKey,
     required this.isSaved,
     required this.onWishlistToggle,
   });
 
   final ProductModel product;
+  final GlobalKey imageKey;
   final bool isSaved;
   final VoidCallback onWishlistToggle;
 
@@ -177,26 +217,11 @@ class _ProductDetails extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: FilledButton.icon(
-                onPressed: product.isInStock
-                    ? () async {
-                        final cartProvider = context.read<CartProvider>();
-                        final productProvider = context.read<ProductProvider>();
-                        final messenger = ScaffoldMessenger.of(context);
-                        await cartProvider.addProduct(product);
-                        await productProvider.trackAddToCart(product);
-                        if (context.mounted) {
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text('${product.name} added to cart'),
-                              duration: const Duration(milliseconds: 900),
-                            ),
-                          );
-                        }
-                      }
-                    : null,
-                icon: const Icon(Icons.shopping_bag_outlined),
-                label: const Text('Add to cart'),
+              child: AnimatedAddToCartButton(
+                product: product,
+                sourceKey: imageKey,
+                idleLabel: 'Add to cart',
+                icon: Icons.shopping_bag_outlined,
               ),
             ),
             const SizedBox(width: 10),

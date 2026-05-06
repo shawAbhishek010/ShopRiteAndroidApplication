@@ -2,18 +2,14 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/payment_model.dart';
 import '../models/order_model.dart';
 import '../repositories/order_repository.dart';
-import '../services/razorpay_service.dart';
+import '../services/payment_service.dart';
+import 'payment_provider.dart';
 
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
   return OrderRepository();
-});
-
-final razorpayServiceProvider = Provider<RazorpayService>((ref) {
-  final service = RazorpayService();
-  ref.onDispose(service.dispose);
-  return service;
 });
 
 final orderProvider = NotifierProvider<OrderController, OrderActionState>(
@@ -24,7 +20,7 @@ final userOrdersProvider =
     StreamProvider.family<List<OrderModel>, OrderListRequest>((ref, request) {
       final repository = ref.watch(orderRepositoryProvider);
       if (request.userId == null || request.userId!.isEmpty) {
-        return const Stream<List<OrderModel>>.empty();
+        return Stream<List<OrderModel>>.value(const []);
       }
       return request.isAdmin
           ? repository.watchAllOrders()
@@ -96,9 +92,10 @@ class OrderController extends Notifier<OrderActionState> {
     try {
       final payment = await _openPayment(
         amount: order.totalAmount,
+        userId: userId,
+        orderId: order.orderId,
         email: '',
         phoneNumber: order.phoneNumber,
-        receipt: 'shoprite_retry_${order.orderId}',
       );
       await ref
           .read(orderRepositoryProvider)
@@ -107,8 +104,22 @@ class OrderController extends Notifier<OrderActionState> {
             orderId: order.orderId,
             status: PaymentStatus.paid,
             paymentId: payment.paymentId,
-            razorpayOrderId: payment.orderId,
+            razorpayOrderId: payment.razorpayOrderId,
             paymentSignature: payment.signature,
+          );
+      await ref
+          .read(paymentRepositoryProvider)
+          .savePayment(
+            PaymentModel(
+              paymentId: payment.paymentId,
+              orderId: order.orderId,
+              amount: order.totalAmount,
+              userId: userId,
+              createdAt: DateTime.now(),
+              status: PaymentStatus.paid.name,
+              razorpayOrderId: payment.razorpayOrderId,
+              paymentSignature: payment.signature,
+            ),
           );
       state = const OrderActionState(
         successMessage: 'Payment successful. Order updated.',
@@ -124,19 +135,21 @@ class OrderController extends Notifier<OrderActionState> {
     state = state.copyWith(clearMessages: true);
   }
 
-  Future<RazorpayPaymentResult> _openPayment({
+  Future<PaymentResult> _openPayment({
     required double amount,
+    required String userId,
+    required String orderId,
     required String email,
     required String phoneNumber,
-    required String receipt,
   }) {
     return ref
-        .read(razorpayServiceProvider)
+        .read(paymentServiceProvider)
         .openCheckout(
           amount: (amount * 100).round(),
+          userId: userId,
+          orderId: orderId,
           email: email,
           phoneNumber: phoneNumber,
-          receipt: receipt,
         );
   }
 }

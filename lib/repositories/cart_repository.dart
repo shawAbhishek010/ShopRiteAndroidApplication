@@ -1,34 +1,22 @@
-import 'package:firebase_core/firebase_core.dart';
+import 'dart:async';
 
 import '../models/cart_item_model.dart';
 import '../models/product_model.dart';
-import '../services/firebase/firestore_service.dart';
 
 class CartRepository {
-  CartRepository({FirestoreService? firestoreService})
-    : _firestoreService =
-          firestoreService ??
-          (Firebase.apps.isNotEmpty ? FirestoreService() : null);
+  final Map<String, List<CartItemModel>> _cartsByUser = {};
+  final StreamController<String> _controller =
+      StreamController<String>.broadcast();
 
-  final FirestoreService? _firestoreService;
-  final List<CartItemModel> _demoCart = [];
-
-  bool get _firebaseReady => Firebase.apps.isNotEmpty;
-
-  Stream<List<CartItemModel>> watchCart(String userId) {
-    if (!_firebaseReady) return Stream<List<CartItemModel>>.value(_demoCart);
-
-    return _firestoreService!.userDocument(userId).snapshots().map((snapshot) {
-      final rawCart = snapshot.data()?['cart'] as List? ?? const [];
-      return rawCart
-          .map((item) => CartItemModel.fromMap(Map<String, dynamic>.from(item)))
-          .toList();
-    });
+  Stream<List<CartItemModel>> watchCart(String userId) async* {
+    yield _cartForUser(userId);
+    yield* _controller.stream
+        .where((changedUserId) => changedUserId == userId)
+        .map((_) => _cartForUser(userId));
   }
 
   Future<void> addProduct(String userId, ProductModel product) async {
-    final current = await watchCart(userId).first;
-    final next = [...current];
+    final next = _cartForUser(userId).toList();
     final index = next.indexWhere((item) => item.productId == product.id);
     if (index == -1) {
       next.add(CartItemModel.fromProduct(product));
@@ -43,8 +31,7 @@ class CartRepository {
     String productId,
     int quantity,
   ) async {
-    final current = await watchCart(userId).first;
-    final next = current
+    final next = _cartForUser(userId)
         .where((item) => item.productId != productId || quantity > 0)
         .map(
           (item) => item.productId == productId
@@ -57,16 +44,14 @@ class CartRepository {
 
   Future<void> clear(String userId) => _saveCart(userId, const []);
 
-  Future<void> _saveCart(String userId, List<CartItemModel> items) async {
-    if (!_firebaseReady) {
-      _demoCart
-        ..clear()
-        ..addAll(items);
-      return;
-    }
+  List<CartItemModel> _cartForUser(String userId) {
+    return List.unmodifiable(_cartsByUser[userId] ?? const []);
+  }
 
-    await _firestoreService!.userDocument(userId).update({
-      'cart': items.map((item) => item.toMap()).toList(),
-    });
+  Future<void> _saveCart(String userId, List<CartItemModel> items) async {
+    _cartsByUser[userId] = List.unmodifiable(items);
+    if (!_controller.isClosed) {
+      _controller.add(userId);
+    }
   }
 }

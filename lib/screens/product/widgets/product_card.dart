@@ -4,30 +4,37 @@ import 'package:provider/provider.dart';
 
 import '../../../core/utils/helpers.dart';
 import '../../../models/product_model.dart';
-import '../../../providers/cart_provider.dart';
 import '../../../providers/product_provider.dart';
 import '../../../providers/wishlist_provider.dart';
 import '../../../routes/app_routes.dart';
+import '../../../widgets/animated_add_to_cart_button.dart';
 
-class ProductCard extends StatelessWidget {
+class ProductCard extends StatefulWidget {
   const ProductCard({super.key, required this.product, this.enableHero = true});
 
   final ProductModel product;
   final bool enableHero;
 
   @override
+  State<ProductCard> createState() => _ProductCardState();
+}
+
+class _ProductCardState extends State<ProductCard> {
+  final GlobalKey _imageKey = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
     final wishlist = context.watch<WishlistProvider>();
-    final isSaved = wishlist.contains(product.id);
+    final isSaved = wishlist.contains(widget.product.id);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
-          context.read<ProductProvider>().trackProductView(product);
+          context.read<ProductProvider>().trackProductView(widget.product);
           Navigator.pushNamed(
             context,
             AppRoutes.productDetail,
-            arguments: product,
+            arguments: widget.product,
           );
         },
         child: Column(
@@ -35,14 +42,15 @@ class ProductCard extends StatelessWidget {
           children: [
             Expanded(
               child: Stack(
+                key: _imageKey,
                 fit: StackFit.expand,
                 children: [
                   HeroMode(
-                    enabled: enableHero,
+                    enabled: widget.enableHero,
                     child: Hero(
-                      tag: 'product-${product.id}',
+                      tag: 'product-${widget.product.id}',
                       child: CachedNetworkImage(
-                        imageUrl: product.imageUrl,
+                        imageUrl: widget.product.imageUrl,
                         fit: BoxFit.cover,
                         memCacheWidth: 700,
                         placeholder: (_, _) => const _ImagePlaceholder(),
@@ -61,7 +69,7 @@ class ProductCard extends StatelessWidget {
                           isSaved ? Icons.favorite : Icons.favorite_border,
                           color: isSaved ? Colors.redAccent : Colors.black87,
                         ),
-                        onPressed: () => wishlist.toggle(product),
+                        onPressed: () => wishlist.toggle(widget.product),
                       ),
                     ),
                   ),
@@ -74,14 +82,14 @@ class ProductCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    product.name,
+                    widget.product.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    product.category,
+                    widget.product.category,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 8),
@@ -89,17 +97,17 @@ class ProductCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          Helpers.formatCurrency(product.salePrice),
+                          Helpers.formatCurrency(widget.product.salePrice),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
                       const SizedBox(width: 6),
-                      if (product.discount > 0)
+                      if (widget.product.discount > 0)
                         Flexible(
                           child: Text(
-                            '${product.discount.toStringAsFixed(0)}% off',
+                            '${widget.product.discount.toStringAsFixed(0)}% off',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -113,29 +121,9 @@ class ProductCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: product.isInStock
-                          ? () async {
-                              final cartProvider = context.read<CartProvider>();
-                              final productProvider = context
-                                  .read<ProductProvider>();
-                              final messenger = ScaffoldMessenger.of(context);
-                              await cartProvider.addProduct(product);
-                              await productProvider.trackAddToCart(product);
-                              if (context.mounted) {
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      '${product.name} added to cart',
-                                    ),
-                                    duration: const Duration(milliseconds: 900),
-                                  ),
-                                );
-                              }
-                            }
-                          : null,
-                      icon: const Icon(Icons.add_shopping_cart, size: 18),
-                      label: Text(product.isInStock ? 'Add' : 'Sold out'),
+                    child: AnimatedAddToCartButton(
+                      product: widget.product,
+                      sourceKey: _imageKey,
                     ),
                   ),
                 ],

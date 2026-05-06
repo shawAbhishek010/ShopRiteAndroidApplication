@@ -1,63 +1,37 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'dart:async';
+import 'dart:developer' as developer;
 
 import '../models/order_model.dart';
-import '../services/firebase/firestore_service.dart';
 
 class OrderRepository {
-  OrderRepository({FirestoreService? firestoreService})
-    : _firestoreService =
-          firestoreService ??
-          (Firebase.apps.isNotEmpty ? FirestoreService() : null);
+  final List<OrderModel> _orders = [];
+  final StreamController<List<OrderModel>> _controller =
+      StreamController<List<OrderModel>>.broadcast();
 
-  final FirestoreService? _firestoreService;
-  final List<OrderModel> _demoOrders = [];
-
-  bool get _firebaseReady => Firebase.apps.isNotEmpty;
-
-  Stream<List<OrderModel>> watchOrders(String userId) {
-    if (!_firebaseReady) {
-      return Stream<List<OrderModel>>.value(
-        _demoOrders
-            .where((order) => order.userId == userId)
-            .toList(growable: false),
-      );
-    }
-
-    return _firestoreService!.userOrdersQuery(userId).snapshots().map((
-      snapshot,
-    ) {
-      return snapshot.docs
-          .map((doc) => OrderModel.fromMap(doc.data(), doc.id))
-          .toList();
-    });
+  Stream<List<OrderModel>> watchOrders(String userId) async* {
+    yield _ordersForUser(userId);
+    yield* _controller.stream.map((_) => _ordersForUser(userId));
   }
 
-  Stream<List<OrderModel>> watchAllOrders() {
-    if (!_firebaseReady) return Stream<List<OrderModel>>.value(_demoOrders);
-
-    return _firestoreService!.ordersQuery().snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => OrderModel.fromMap(doc.data(), doc.id))
-          .toList();
-    });
+  Stream<List<OrderModel>> watchAllOrders() async* {
+    yield _sortedOrders();
+    yield* _controller.stream.map((_) => _sortedOrders());
   }
 
   Future<OrderModel> createOrder({required OrderModel order}) async {
-    if (!_firebaseReady) {
-      _saveDemoOrder(order);
-      return order;
+    developer.log(
+      'Saving local order ${order.orderId} for userId=${order.userId}',
+      name: 'OrderRepository',
+    );
+    final existingIndex = _orders.indexWhere(
+      (existing) => existing.orderId == order.orderId,
+    );
+    if (existingIndex == -1) {
+      _orders.insert(0, order);
+    } else {
+      _orders[existingIndex] = order;
     }
-
-    try {
-      await _firestoreService!
-          .userOrdersCollection(order.userId)
-          .doc(order.orderId)
-          .set(order.toMap());
-    } catch (_) {
-      _saveDemoOrder(order);
-    }
-
+    _emit();
     return order;
   }
 
@@ -69,53 +43,46 @@ class OrderRepository {
     String? razorpayOrderId,
     String? paymentSignature,
   }) async {
-    final index = _demoOrders.indexWhere((order) => order.orderId == orderId);
-    if (index != -1) {
-      _demoOrders[index] = _demoOrders[index].copyWith(
-        paymentStatus: status,
-        paymentId: paymentId,
-        razorpayOrderId: razorpayOrderId,
-        paymentSignature: paymentSignature,
-      );
-    }
+    final index = _orders.indexWhere(
+      (order) => order.orderId == orderId && order.userId == userId,
+    );
+    if (index == -1) return;
 
-    if (!_firebaseReady) return;
-
-    await _firestoreService!.userOrdersCollection(userId).doc(orderId).set({
-      'paymentStatus': status.name,
-      'paymentId': paymentId,
-      'razorpayOrderId': razorpayOrderId,
-      'paymentSignature': paymentSignature,
-    }, SetOptions(merge: true));
+    _orders[index] = _orders[index].copyWith(
+      paymentStatus: status,
+      paymentId: paymentId,
+      razorpayOrderId: razorpayOrderId,
+      paymentSignature: paymentSignature,
+    );
+    developer.log(
+      'Updated local payment status for orderId=$orderId',
+      name: 'OrderRepository',
+    );
+    _emit();
   }
 
   Future<List<OrderModel>> getUserOrders(String userId) async {
-    if (!_firebaseReady) {
-      return _demoOrders
-          .where((order) => order.userId == userId)
-          .toList(growable: false);
-    }
-
-    try {
-      final snapshot = await _firestoreService!.userOrdersQuery(userId).get();
-      return snapshot.docs
-          .map((doc) => OrderModel.fromMap(doc.data(), doc.id))
-          .toList();
-    } catch (_) {
-      return _demoOrders
-          .where((order) => order.userId == userId)
-          .toList(growable: false);
-    }
+    return _ordersForUser(userId);
   }
 
-  void _saveDemoOrder(OrderModel order) {
-    final existingIndex = _demoOrders.indexWhere(
-      (existing) => existing.orderId == order.orderId,
-    );
-    if (existingIndex == -1) {
-      _demoOrders.insert(0, order);
-    } else {
-      _demoOrders[existingIndex] = order;
+  List<OrderModel> _ordersForUser(String userId) {
+    if (userId.isEmpty) return const [];
+    final orders = _orders
+        .where((order) => order.userId == userId)
+        .toList(growable: false);
+    orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return orders;
+  }
+
+  List<OrderModel> _sortedOrders() {
+    final orders = _orders.toList(growable: false);
+    orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return orders;
+  }
+
+  void _emit() {
+    if (!_controller.isClosed) {
+      _controller.add(_sortedOrders());
     }
   }
 }

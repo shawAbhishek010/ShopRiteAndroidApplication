@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/cart_item_model.dart';
 import '../models/order_model.dart';
-import '../services/razorpay_service.dart';
+import '../models/payment_model.dart';
+import '../services/payment_service.dart';
 import 'order_provider.dart';
+import 'payment_provider.dart';
 
 final checkoutProvider = NotifierProvider<CheckoutController, CheckoutState>(
   CheckoutController.new,
@@ -76,21 +78,23 @@ class CheckoutController extends Notifier<CheckoutState> {
     );
 
     try {
-      RazorpayPaymentResult? payment;
+      final orderId = DateTime.now().microsecondsSinceEpoch.toString();
+      PaymentResult? payment;
       var paymentStatus = PaymentStatus.pending;
 
       if (state.paymentMode == PaymentMode.payNow) {
         payment = await _openPayment(
           amount: amount,
+          userId: userId,
+          orderId: orderId,
           email: email,
           phoneNumber: phoneNumber,
-          receipt: 'shoprite_${DateTime.now().millisecondsSinceEpoch}',
         );
         paymentStatus = PaymentStatus.paid;
       }
 
       final order = OrderModel(
-        orderId: DateTime.now().microsecondsSinceEpoch.toString(),
+        orderId: orderId,
         userId: userId,
         items: List.unmodifiable(items),
         totalAmount: amount,
@@ -100,7 +104,7 @@ class CheckoutController extends Notifier<CheckoutState> {
         deliveryAddress: deliveryAddress,
         paymentStatus: paymentStatus,
         paymentId: payment?.paymentId,
-        razorpayOrderId: payment?.orderId ?? '',
+        razorpayOrderId: payment?.razorpayOrderId ?? '',
         paymentSignature: payment?.signature ?? '',
       );
 
@@ -108,6 +112,23 @@ class CheckoutController extends Notifier<CheckoutState> {
           .read(orderRepositoryProvider)
           .createOrder(order: order)
           .timeout(const Duration(seconds: 12));
+      if (payment != null) {
+        await ref
+            .read(paymentRepositoryProvider)
+            .savePayment(
+              PaymentModel(
+                paymentId: payment.paymentId,
+                orderId: createdOrder.orderId,
+                amount: createdOrder.totalAmount,
+                userId: createdOrder.userId,
+                createdAt: DateTime.now(),
+                status: createdOrder.paymentStatus.name,
+                razorpayOrderId: payment.razorpayOrderId,
+                paymentSignature: payment.signature,
+              ),
+            )
+            .timeout(const Duration(seconds: 12));
+      }
       state = state.copyWith(isLoading: false, lastOrder: createdOrder);
       return createdOrder;
     } on TimeoutException {
@@ -126,19 +147,21 @@ class CheckoutController extends Notifier<CheckoutState> {
     state = state.copyWith(clearError: true);
   }
 
-  Future<RazorpayPaymentResult> _openPayment({
+  Future<PaymentResult> _openPayment({
     required double amount,
+    required String userId,
+    required String orderId,
     required String email,
     required String phoneNumber,
-    required String receipt,
   }) {
     return ref
-        .read(razorpayServiceProvider)
+        .read(paymentServiceProvider)
         .openCheckout(
           amount: (amount * 100).round(),
+          userId: userId,
+          orderId: orderId,
           email: email,
           phoneNumber: phoneNumber,
-          receipt: receipt,
         );
   }
 }

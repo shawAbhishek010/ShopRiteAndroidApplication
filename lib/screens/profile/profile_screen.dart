@@ -65,6 +65,13 @@ class ProfileScreen extends riverpod.ConsumerWidget {
               title: const Text('My orders'),
               onTap: () => Navigator.pushNamed(context, AppRoutes.orders),
             ),
+          if (!auth.isAdmin)
+            ListTile(
+              leading: const Icon(Icons.payments_outlined),
+              title: const Text('Payment history'),
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.paymentHistory),
+            ),
           ListTile(
             leading: const Icon(Icons.favorite_border),
             title: const Text('Wishlist'),

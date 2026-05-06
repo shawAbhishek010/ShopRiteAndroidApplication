@@ -5,13 +5,13 @@ ShopRite is a Flutter fashion commerce app inspired by the completeness of moder
 ## Features
 
 - Firebase Auth email/password signup, login, persistent session, logout, and mapped auth errors.
-- Firestore-backed collections: `users`, `products`, and per-user `orders`.
+- Firebase-backed user/product data with demo in-memory cart, wishlist, order, and payment history.
 - Structured Dart models with `toMap` / `fromMap` serialization.
-- Real-time cart and wishlist updates through user document streams.
+- In-memory cart, wishlist, order, and payment history for the demo checkout flow.
 - Product listing with search, category filtering, details, discounts, ratings, stock state, and optimized cached images.
 - Checkout uses Razorpay Test Mode on Android/iOS, with Pay Now and Pay Later order flows.
 - Recently viewed products stored locally.
-- Search-history recommendations backed by a local Python recommendation service.
+- Search-history recommendations using the in-app recommendation engine.
 - Trending algorithm based on views, add-to-cart frequency, rating, discount, and stock.
 - Order analytics chart showing monthly spending.
 - Offline handling with cached product list and clear offline/error UI.
@@ -26,7 +26,7 @@ ShopRite is a Flutter fashion commerce app inspired by the completeness of moder
 4. Add Android/iOS/Web apps as needed.
 5. Confirm the generated values in `lib/firebase_options.dart`.
 
-Expected Firestore shape:
+Expected Firestore shape for Firebase-backed user/product data:
 
 ```text
 users/{userId}
@@ -34,21 +34,6 @@ users/{userId}
   name: string
   email: string
   wishlist: string[]
-  cart: map[]
-  orders/{orderId}
-    id: string
-    orderId: string
-    userId: string
-    items: map[]
-    totalAmount: number
-    status: string
-    createdAt: timestamp
-    phoneNumber: string
-    deliveryAddress: string
-    paymentStatus: string
-    paymentId: string|null
-    razorpayOrderId: string
-    paymentSignature: string
 
 products/{productId}
   id: string
@@ -66,7 +51,7 @@ products/{productId}
 
 ## Custom Logic
 
-The recommendation engine scores products using the user's recent product searches. Flutter sends product data and search history to `python_recommender/recommendation_server.py`, which returns ranked product ids.
+The recommendation engine scores products in Dart using the user's recent product searches, ratings, stock, discounts, and engagement data.
 
 The trending system ranks products using:
 
@@ -82,36 +67,31 @@ The order analytics chart shows monthly spending. The insight it provides: users
 
 ## Razorpay Test Payment
 
-`lib/config/razorpay_config.dart` contains client-side Razorpay configuration, `lib/services/razorpay_service.dart` owns the Razorpay SDK event listeners, `lib/state/checkout_provider.dart` handles Pay Now / Pay Later checkout state, and `lib/state/order_provider.dart` handles pending-order payment updates. Razorpay's Flutter SDK supports Android and iOS. Test keys do not move real money.
+`lib/config/razorpay_config.dart` contains client-side Razorpay configuration, `lib/services/payment_service.dart` owns the Razorpay SDK event listeners, `lib/state/checkout_provider.dart` handles Pay Now / Pay Later checkout state, `lib/state/order_provider.dart` handles pending-order payment updates, and `lib/repositories/payment_repository.dart` stores demo payment history in app memory. Razorpay's Flutter SDK supports Android and iOS. Test keys do not move real money.
 
 Checkout supports two payment modes:
 
-- Pay Now: opens Razorpay before creating the order; successful payments create an order with `paymentStatus: paid`.
+- Pay Now: opens Razorpay before creating the order; successful payments create an order with `paymentStatus: paid` and a payment history entry.
 - Pay Later: creates the order immediately with `paymentStatus: pending`; order history shows a Pay Now button for pending orders.
 
 1. Create or open a Razorpay account.
 2. Switch the Razorpay Dashboard to Test Mode.
-3. Copy the Test Mode `Key ID` and `Key Secret`.
-4. Check the simple config files:
+3. Copy the Test Mode `Key ID`.
+4. Update the Flutter config if you want to replace the bundled test key:
 
 ```powershell
 notepad lib\config\razorpay_config.dart
-notepad python_payment_server\razorpay_server_config.py
 ```
 
-5. Start the local payment server:
+You can also pass a key at run time:
 
 ```powershell
-.\scripts\start_razorpay_server.ps1
+flutter run --dart-define=RAZORPAY_KEY_ID=your_test_key_id
 ```
 
-6. In another terminal, run Flutter on Android emulator:
+The Flutter app opens Razorpay Checkout directly through `razorpay_flutter`; it does not call a local payment API.
 
-```powershell
-.\scripts\run_razorpay_android.ps1
-```
-
-The Flutter app now points directly to `http://10.255.104.58:8790`. If your Wi-Fi IP changes, update that single value in `lib/config/razorpay_config.dart`.
+For the current demo flow, cart, wishlist, orders, and payments are local in-memory app state. They appear instantly after successful payment and are cleared when the app process restarts.
 
 ## How To Run
 

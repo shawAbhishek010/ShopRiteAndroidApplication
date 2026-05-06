@@ -8,6 +8,7 @@ import '../screens/home/home_screen.dart';
 import '../screens/landing/landing_page.dart';
 import '../screens/order/order_screen.dart';
 import '../screens/order/order_tracking_screen.dart';
+import '../screens/payment/payment_history_screen.dart';
 import '../screens/product/product_detail_screen.dart';
 import '../screens/product/product_list_screen.dart';
 import '../screens/profile/profile_screen.dart';
@@ -28,6 +29,7 @@ class AppRoutes {
   static const wishlist = '/wishlist';
   static const orders = '/orders';
   static const orderTracking = '/order-tracking';
+  static const paymentHistory = '/payment-history';
   static const profile = '/profile';
   static const landing = '/landing';
   static const admin = '/admin';
@@ -57,6 +59,8 @@ class AppRoutes {
             return _withBackground(const OrderScreen());
           case orderTracking:
             return _withBackground(const OrderTrackingScreen());
+          case paymentHistory:
+            return _withBackground(const PaymentHistoryScreen());
           case profile:
             return _withBackground(const ProfileScreen());
           case landing:
