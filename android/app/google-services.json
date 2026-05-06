@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "938450509812",
+    "project_id": "shoprite-608e0",
+    "storage_bucket": "shoprite-608e0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:938450509812:android:1eda64c96e0393182ba3a1",
+        "android_client_info": {
+          "package_name": "com.example.shop_rite_ecommerce"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBiDFE94a4Ffi9JVGSW8iw_9c_H16lFIy4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,5 @@
+RAZORPAY_KEY_ID = "rzp_test_SlhvLFuvfU78aR"
+RAZORPAY_KEY_SECRET = "XGlxyynekPr1IvmsXxsIXMVf"
+
+HOST = "0.0.0.0"
+PORT = 8790
