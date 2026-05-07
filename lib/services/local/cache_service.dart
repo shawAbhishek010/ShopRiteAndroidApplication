@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/product_model.dart';
-
+//CacheService is responsible for caching product data, recently viewed products, and search history using SharedPreferences. It provides methods to store and retrieve this data, allowing the app to function more efficiently and provide a better user experience even when offline.
 class CacheService {
   static const _productsKey = 'cached_products_v5';
   static const _recentlyViewedKey = 'recently_viewed_products';
