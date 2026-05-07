@@ -48,7 +48,7 @@ class _BannerCarouselState extends State<BannerCarousel> {
 
   Timer? _timer;
   int _currentSet = 0;
-
+//updation in animated Banner Carousel and shopping wall images to make it more dynamic and attractive with new images and also added some animation effects to make it more appealing to the users.
   @override
   void initState() {
     super.initState();
