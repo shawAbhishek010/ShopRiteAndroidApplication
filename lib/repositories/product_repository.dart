@@ -31,13 +31,10 @@ class ProductRepository {
     return _firestoreService!.productsQuery().snapshots().asyncMap((
       snapshot,
     ) async {
-      final products = snapshot.docs
+      final firestoreProducts = snapshot.docs
           .map((doc) => ProductModel.fromMap(doc.data(), doc.id))
           .toList();
-      if (products.isEmpty) {
-        return _loadDemoProducts();
-      }
-
+      final products = await _mergeWithDemoProducts(firestoreProducts);
       await _cacheService.cacheProducts(products);
       return products;
     });
@@ -80,7 +77,7 @@ class ProductRepository {
       return;
     }
 
-    final products = await _loadDemoProducts();
+    final products = await _loadCurrentProducts();
     await _cacheService.cacheProducts([product, ...products]);
   }
 
@@ -93,7 +90,7 @@ class ProductRepository {
       return;
     }
 
-    final products = await _loadDemoProducts();
+    final products = await _loadCurrentProducts();
     await _cacheService.cacheProducts([
       for (final item in products)
         if (item.id == product.id) product else item,
@@ -106,7 +103,7 @@ class ProductRepository {
       return;
     }
 
-    final products = await _loadDemoProducts();
+    final products = await _loadCurrentProducts();
     await _cacheService.cacheProducts([
       for (final product in products)
         if (product.id != productId) product,
@@ -143,5 +140,30 @@ class ProductRepository {
     final demoProducts = await _productApi.fetchProducts();
     await _cacheService.cacheProducts(demoProducts);
     return demoProducts;
+  }
+
+  Future<List<ProductModel>> _loadCurrentProducts() async {
+    final cached = await _cacheService.readCachedProducts();
+    if (cached.isNotEmpty) return cached;
+    return _loadDemoProducts();
+  }
+
+  Future<List<ProductModel>> _mergeWithDemoProducts(
+    List<ProductModel> firestoreProducts,
+  ) async {
+    final demoProducts = await _productApi.fetchProducts();
+    if (firestoreProducts.isEmpty) return demoProducts;
+
+    final firestoreById = {
+      for (final product in firestoreProducts) product.id: product,
+    };
+    final merged = <ProductModel>[
+      ...firestoreProducts.where(
+        (product) => demoProducts.every((demo) => demo.id != product.id),
+      ),
+      for (final demoProduct in demoProducts)
+        firestoreById[demoProduct.id] ?? demoProduct,
+    ];
+    return merged;
   }
 }
